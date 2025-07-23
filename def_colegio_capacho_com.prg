@@ -15,9 +15,14 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     LOCAL aRef:={}
     LOCAL cItem,cNumEje,nValCam:=1,cNumero:=STRZERO(1,8),dFecha,nMonto:=0,aFechas:={},cCodCta
     LOCAL nNumFile:=NIL,dDesde:=CTOD(""),dHasta:=CTOD("")
-    LOCAL cNumPar:=STRZERO(1,5),nContar:=0
+    LOCAL cNumPar:=STRZERO(1,5),nContar:=0,cCtaCaj:="",cCtaAnt:="",cCodInt:=""
 
-    DEFAULT cCodigo:="COLEGIO_CAPACHO_NOM"
+    DEFAULT cCodigo:="COLEGIO_CAPACHO_COM"
+
+
+    // Cuenta contable para IGTF
+    oDp:cCtaIgtfPag:=SQLGET("VIEW_DPCODINTEGRA","CIN_CODCTA,CIN_ABREVI","CIN_CODIGO='IGTFPAG'")
+    oDp:cAbrIgtfPag:=ALLTRIM(DPSQLROW(2,"IGTF PAGADO"))
 
     oTable  :=OpenTable("SELECT IXL_FILE,IXL_TABLA,IXL_LININI,IXL_MEMO FROM DPIMPRXLS WHERE IXL_CODIGO"+GetWhere("=",cCodigo),.T.)
     cFileXls:=ALLTRIM(oTable:IXL_FILE  )
@@ -43,12 +48,29 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
 
     IF(ValType(oSay)="O",oSay:SetText("Leyendo Archivo"),NIL)
 
-    oXls:=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,nLinIni)
+   // LEER LA CUENTAS CONTABLES 
+   oXls   :=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,2,4,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,.T.)
 
-    IF(oImpXls:lBrowse,oXls:Browse(),NIL)
+   cCtaCaj :=CTOO(oXls:K4,"C")
+   cCtaAnt :=CTOO(oXls:L4,"C")
 
-    // Busca cuentas según nombre
-    WHILE !oXls:Eof()
+   IF !Empty(cCtaAnt)
+      EJECUTAR("DPCODINTEGRA_ADD","COMANT","Anticipos Proveedores",cCtaAnt)
+   ENDIF
+
+   IF !Empty(cCtaCaj)
+      EJECUTAR("DPCODINTEGRA_ADD","CAJEXT","Caja moneda Extranjera",cCtaCaj)
+   ENDIF
+
+
+   oXls:End()
+
+   oXls:=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,nLinIni)
+
+   IF(oImpXls:lBrowse,oXls:Browse(),NIL)
+
+   // Busca cuentas según nombre
+   WHILE !oXls:Eof()
 
       IF Empty(oXls:COL_B) .AND. (!Empty(oXls:COL_F) .OR. !Empty(oXls:COL_G))
          cCodCta:=SQLGET("DPCTA","CTA_CODIGO","CTA_DESCRI"+GetWhere("=",oXls:COL_C))
@@ -105,24 +127,22 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
          oXls:COL_B:=SQLGET("DPCTA","CTA_CODIGO","CTA_DESCRI"+GetWhere("=",oXls:COL_C))
       ENDIF
 
-      cCodCta:=CTOO(oXls:COL_B,"C")
+      cCodCta:=CTOO(oXls:COL_D,"C")
       cCodCta:=STRTRAN(cCodCta,"-","")
       cCodCta:=STRTRAN(cCodCta,";","")
       cCodCta:=STRTRAN(cCodCta,"/","")
       cCodCta:=STRTRAN(cCodCta,".","")
 
-      oXls:COL_A:=CTOO(oXls:COL_A,"C")
+      oXls:COL_B:=CTOO(oXls:COL_B,"C")
 
-      IF LEN(oXls:COL_A)>10
+      IF LEN(oXls:COL_B)>10
          // no es fecha
          oXls:DbSkip()
          LOOP
       ENDIF
 
-      oXls:COL_A:=LEFT(oXls:COL_A,10)
-
-      IF !Empty(CTOO(oXls:COL_A,"D"))
-         dFecha:=CTOO(oXls:COL_A,"D")
+      IF !Empty(CTOO(oXls:COL_B,"D"))
+         dFecha:=CTOO(oXls:COL_B,"D")
          dDesde:=IF(Empty(dDesde),dFecha,dDesde)
          dDesde:=MIN(dDesde,dFecha)
          dHasta:=MAX(dHasta,dFecha)
@@ -158,24 +178,29 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
 
       ENDIF
 
-      // cItem:=STRZERO(nItem,4)
-      // oXls:COL_E:=ALLTRIM(CTOO(oXls:COL_E,"C")) // REFERENCIA
-      oXls:COL_C:=CTOO(oXls:COL_C,"C")
+      oXls:COL_C:=CTOO(oXls:COL_C,"C") // RIF
 
       IF(ValType(oMemo)="O",oMemo:Append("#"+LSTR(oXls:Recno())+"->"+cCodCta+CRLF),NIL)
 
-      nMonto :=CTOO(oXls:COL_F,"N")-CTOO(oXls:COL_G,"N") 
+      SET DECI TO 2
 
-      // Archivo Préstamos empleados cambia las columnas
-      IF nMonto=0
-         nMonto :=CTOO(oXls:COL_D,"N")-CTOO(oXls:COL_E,"N") 
-      ENDIF
+      oXls:COL_I:=IF(Empty(oXls:COL_I),0.00,oXls:COL_I)
+      oXls:COL_G:=IF(Empty(oXls:COL_G),0.00,oXls:COL_G)
+      oXls:COL_H:=IF(Empty(oXls:COL_H),0.00,oXls:COL_H)
 
-      // Archivo comisiones.xls
-      IF nMonto=0
-         nMonto :=CTOO(oXls:COL_E,"N")-CTOO(oXls:COL_F,"N") 
-      ENDIF
+      oXls:COL_F:=CTOO(oXls:COL_F,"N") // Monto Exento
+      oXls:COL_G:=CTOO(oXls:COL_G,"N") // Base
+      oXls:COL_H:=CTOO(oXls:COL_H,"N") // Monto IVA
 
+      nMonto :=oXls:COL_F+oXls:COL_G+oXls:COL_H // Contribuyente formal
+      // nMonto :=CTOO(oXls:COL_J,"N")
+
+      oXls:COL_I:=CTOO(oXls:COL_I,"N") // Monto con IGTF
+
+// IF !Empty(oXls:COL_F)
+//  oXls:COL_F:=VAL(LSTR(oXls:COL_F,10,2))
+//? oXls:COL_F,"oXls:COL_H",LSTR(oXls:COL_H,10,2),nMonto,"nMonto",lstr(nMonto,12,2)
+// ENDIF
 
 
       // Si la cuenta no existe la busca por Nombre
@@ -196,7 +221,7 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
 
       nMtoIva:=0 //
 
-      IF nMonto<>0 .AND. !Empty(oXls:COL_C)
+      IF nMonto<>0
 
          nContar++
          nItem++ 
@@ -210,7 +235,7 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
          oTable:AppendBlank()
          oTable:Replace("MOC_ITEM"  ,cItem)
          oTable:Replace("MOC_CUENTA",cCodCta)
-         oTable:Replace("MOC_DESCRI",oXls:COL_C)
+         oTable:Replace("MOC_DESCRI",oXls:COL_E)
          oTable:Replace("MOC_CTAMOD",oDp:cCtaMod)
          oTable:Replace("MOC_DOCUME",""    ) // oXls:COL_B)
          oTable:Replace("MOC_FECHA" ,dFecha) // oDp:dFchInicio)
@@ -221,11 +246,13 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
          oTable:Replace("MOC_USUARI",oDp:cUsuario)
          oTable:Replace("MOC_MONTO" ,nMonto)
          oTable:Replace("MOC_VALCAM",nValCam)
-//       oTable:Replace("MOC_RIF"   ,oXls:COL_C)
+         oTable:Replace("MOC_RIF"   ,oXls:COL_C)
          oTable:Replace("MOC_CODSUC",oParXls:cCodSuc)
          oTable:Replace("MOC_NUMFIL",nNumFile)
          oTable:Replace("MOC_NUMPAR",cNumPar )
          oTable:Replace("MOC_TIPTRA","D"     )
+         oTable:Replace("MOC_TIPASI","DOC"   ) // Documento de Compras
+         oTable:Replace("MOC_CODINT","COMNAC") // Compras Nacionales
          oTable:Commit("")
 
          IF ValType(oMemo)="O"
@@ -233,11 +260,113 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
            oMemo:Append("#"+GetNumRel(oXls:Recno(),oXls:RecCount())+" "+DTOC(dFecha)+" "+cCodCta+" "+cItem+" "+LSTR(nMonto)+CRLF)
          ENDIF
 
-      ENDIF
+       ENDIF
 
-      oXls:DbSkip()
+         /*
+         // IGTF, UTILIZO CUENTA EN MONEDA EXTRANJERA
+         */
+         IF oXls:COL_I>0
 
-      SysRefresh(.T.)
+           cCodCta:=IF(Empty(oDp:cCtaIgtfPag),oDp:cCtaIndef,oDp:cCtaIgtfPag)
+           cItem  :=SQLINCREMENTAL("DPASIENTOS","MOC_ITEM",cWhere,NIL,NIL,.T.,4)
+
+           oTable:AppendBlank()
+           oTable:Replace("MOC_ITEM"  ,cItem)
+           oTable:Replace("MOC_CUENTA",cCodCta)
+           oTable:Replace("MOC_DESCRI",oXls:COL_E)
+           oTable:Replace("MOC_CTAMOD",oDp:cCtaMod)
+           oTable:Replace("MOC_DOCUME",""    ) // oXls:COL_B)
+           oTable:Replace("MOC_FECHA" ,dFecha) // oDp:dFchInicio)
+           oTable:Replace("MOC_ACTUAL","S")
+           oTable:Replace("MOC_ORIGEN","XLS")
+           oTable:Replace("MOC_NUMCBT",cNumero)
+           oTable:Replace("MOC_NUMEJE",cNumEje)
+           oTable:Replace("MOC_USUARI",oDp:cUsuario)
+           oTable:Replace("MOC_MONTO" ,oXls:COL_I)
+           oTable:Replace("MOC_VALCAM",nValCam)
+           oTable:Replace("MOC_RIF"   ,oXls:COL_C)
+           oTable:Replace("MOC_CODSUC",oParXls:cCodSuc)
+           oTable:Replace("MOC_NUMFIL",nNumFile)
+           oTable:Replace("MOC_NUMPAR",cNumPar )
+           oTable:Replace("MOC_TIPTRA","D"     )
+           oTable:Replace("MOC_TIPASI","DOC"   ) // Documento de Compras
+           oTable:Replace("MOC_CODINT","IGTFPAG") // Compras Nacionales
+           oTable:Commit("")
+
+         ENDIF
+
+         // Contrapartida
+         // cCtaCaj:="",cCtaAnt:=""
+
+         nMonto :=CTOO(oXls:COL_K,"N")
+        
+         IF nMonto>0
+
+           cCodCta:=cCtaCaj // Caja
+           cCodInt:="CAJNAC"
+           cItem  :=SQLINCREMENTAL("DPASIENTOS","MOC_ITEM",cWhere,NIL,NIL,.T.,4)
+
+           oTable:AppendBlank()
+           oTable:Replace("MOC_ITEM"  ,cItem)
+           oTable:Replace("MOC_CUENTA",cCodCta)
+           oTable:Replace("MOC_DESCRI",oXls:COL_E)
+           oTable:Replace("MOC_CTAMOD",oDp:cCtaMod)
+           oTable:Replace("MOC_DOCUME",""    ) // oXls:COL_B)
+           oTable:Replace("MOC_FECHA" ,dFecha) // oDp:dFchInicio)
+           oTable:Replace("MOC_ACTUAL","S")
+           oTable:Replace("MOC_ORIGEN","XLS")
+           oTable:Replace("MOC_NUMCBT",cNumero)
+           oTable:Replace("MOC_NUMEJE",cNumEje)
+           oTable:Replace("MOC_USUARI",oDp:cUsuario)
+           oTable:Replace("MOC_MONTO" ,(nMonto)*-1   )
+           oTable:Replace("MOC_VALCAM",nValCam)
+           oTable:Replace("MOC_RIF"   ,oXls:COL_C)
+           oTable:Replace("MOC_CODSUC",oParXls:cCodSuc)
+           oTable:Replace("MOC_NUMFIL",nNumFile)
+           oTable:Replace("MOC_NUMPAR",cNumPar )
+           oTable:Replace("MOC_TIPTRA","D"     )
+           oTable:Replace("MOC_TIPASI","DOC"   ) // Documento de Compras
+           oTable:Replace("MOC_CODINT",cCodInt ) // Compras Nacionales
+           oTable:Commit("")
+
+         ENDIF
+
+         nMonto :=CTOO(oXls:COL_L,"N") // Anticipo
+
+         IF nMonto>0
+
+           cCodCta:=cCtaAnt
+           cCodInt:="COMANT"
+           cItem  :=SQLINCREMENTAL("DPASIENTOS","MOC_ITEM",cWhere,NIL,NIL,.T.,4)
+
+           oTable:AppendBlank()
+           oTable:Replace("MOC_ITEM"  ,cItem)
+           oTable:Replace("MOC_CUENTA",cCodCta)
+           oTable:Replace("MOC_DESCRI",oXls:COL_E)
+           oTable:Replace("MOC_CTAMOD",oDp:cCtaMod)
+           oTable:Replace("MOC_DOCUME",""    ) // oXls:COL_B)
+           oTable:Replace("MOC_FECHA" ,dFecha) // oDp:dFchInicio)
+           oTable:Replace("MOC_ACTUAL","S")
+           oTable:Replace("MOC_ORIGEN","XLS")
+           oTable:Replace("MOC_NUMCBT",cNumero)
+           oTable:Replace("MOC_NUMEJE",cNumEje)
+           oTable:Replace("MOC_USUARI",oDp:cUsuario)
+           oTable:Replace("MOC_MONTO" ,(nMonto)*-1   )
+           oTable:Replace("MOC_VALCAM",nValCam)
+           oTable:Replace("MOC_RIF"   ,oXls:COL_C)
+           oTable:Replace("MOC_CODSUC",oParXls:cCodSuc)
+           oTable:Replace("MOC_NUMFIL",nNumFile)
+           oTable:Replace("MOC_NUMPAR",cNumPar )
+           oTable:Replace("MOC_TIPTRA","D"     )
+           oTable:Replace("MOC_TIPASI","DOC"   ) // Documento de Compras
+           oTable:Replace("MOC_CODINT",cCodInt ) // Compras Nacionales
+           oTable:Commit("")
+
+         ENDIF
+
+        oXls:DbSkip()
+
+        SysRefresh(.T.)
 
    ENDDO
 
@@ -263,3 +392,4 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
 
 RETURN .T.
 //
+

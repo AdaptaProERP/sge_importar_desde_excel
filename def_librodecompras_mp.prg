@@ -10,18 +10,17 @@
 
 PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
    LOCAL cFileDbf,cFileXls,cTable,cCodigo,cWhere,cTipDoc,cItem,cNumPar,cCodPro,cItem,cTipIva
-   LOCAL oTable,oXls,lBrowse
+   LOCAL oTable,oXls
    LOCAL nLinIni,nContar,I,U,nCxP
    LOCAL dDesde:=oParXls:dDesde
    LOCAL dHasta:=oParXls:dHasta
 
-   DEFAULT cCodigo:="LIBRODECOMPRAS_YB"
+   DEFAULT cCodigo:="LIBRODECOMPRAS_MP"
 
    oTable  :=OpenTable("SELECT IXL_FILE,IXL_TABLA,IXL_LININI FROM DPIMPRXLS WHERE IXL_CODIGO"+GetWhere("=",cCodigo),.T.)
    cFileXls:=ALLTRIM(oTable:IXL_FILE  )
    cTable  :=ALLTRIM(oTable:IXL_TABLA )
    nLinIni :=MAX(oTable:IXL_LININI,1)
-   lBrowse :=oTable:IXL_LININI
    oTable:End(.T.)
 
    cWhere:="LBC_CODSUC"+GetWhere("=",oDp:cSucursal)+" AND "+;
@@ -33,11 +32,12 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
    IF(ValType(oMemo)="O",oMemo:Append("Leyendo "+cFileXls+CRLF),NIL)
 
 
-   oXls   :=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,nLinIni)
-
-   IF oParXls:lBrowse 
-     ViewArray(oXls:aData)
-   ENDIF
+//   IF oDp:oXls=NIL .OR. Empty(oDp:oXls:aData)
+      oXls   :=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,nLinIni)
+//      oDp:oXls:=oXls
+//   ELSE
+//      oXls:=oDp:oXls
+//   ENDIF
 
    ADEPURA(oXls:aData,{|a,n| Empty(a[1])})
 
@@ -64,7 +64,7 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
       IF(ValType(oSay  )="O",oSay:SetText("Reg:"+GetNumRel(oXls:Recno(),oXls:RecCount())),NIL)
       IF(ValType(oMeter)="O",oMeter:Set(oXls:Recno()),NIL)
 
-      cCodPro:=STRTRAN(ALLTRIM(oXls:COL_H),"-","")
+      cCodPro:=STRTRAN(ALLTRIM(oXls:COL_D),"-","")
       cCodPro:=STRTRAN(cCodPro,"-","")
      
       IF Empty(cCodPro) 
@@ -79,27 +79,28 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
          LOOP
       ENDIF
 
+
       IF !ISSQLFIND("DPPROVEEDOR","PRO_RIF"+GetWhere("=",cCodPro))
-         cCodPro:=EJECUTAR("DPPROVEEDORCREA",cCodPro,oXls:COL_G,cCodPro)
+         cCodPro:=EJECUTAR("DPPROVEEDORCREA",cCodPro,oXls:COL_C,cCodPro)
       ENDIF
 
       cItem:=SQLINCREMENTAL(cTable,"LBC_NUMPAR",cWhere,NIL,NIL,.T.,5)
 
       oXls:COL_B:=CTOO(oXls:COL_B,"D")
-/*
+
       IF MONTH(dHasta)<>MONTH(oXls:COL_B) .AND. YEAR(dHasta)<>MONTH(oXls:COL_B)
          IF(ValType(oMemo)="O",oMemo:Append("#"+LSTR(oXls:Recno())+"->"+cTipDoc+"-"+oXls:COL_F+" Periodo Diferente "+CTOO(oXls:COL_B,"C")+CRLF),NIL)
          oXls:DbSkip()   
          LOOP
       ENDIF
-*/
-      oXls:COL_C:=CTOO(oXls:COL_C,"C") // Viene numérico
-      oXls:COL_D:=CTOO(oXls:COL_D,"C") // Viene numérico
 
-      IF(ValType(oMemo)="O",oMemo:Append("#"+LSTR(oXls:Recno())+"->"+cTipDoc+"-"+oXls:COL_C+CRLF),NIL)
+      oXls:COL_I:=CTOO(oXls:COL_I,"C") // Viene numérico
+      oXls:COL_J:=CTOO(oXls:COL_J,"C") // Viene numérico
+
+      IF(ValType(oMemo)="O",oMemo:Append("#"+LSTR(oXls:Recno())+"->"+cTipDoc+"-"+oXls:COL_I+CRLF),NIL)
       oTable:AppendBlank()
-      oTable:Replace("LBC_NUMFAC",oXls:COL_C)
-      oTable:Replace("LBC_NUMFIS",oXls:COL_D)
+      oTable:Replace("LBC_NUMFAC",oXls:COL_I)
+      oTable:Replace("LBC_NUMFIS",oXls:COL_J)
       oTable:Replace("LBC_ORIGEN","XLS")
       oTable:Replace("LBC_CODIGO",cCodPro)
       oTable:Replace("LBC_RIF",cCodPro)
@@ -117,10 +118,10 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
       oTable:Replace("LBC_CODMON",oDp:cMonedaExt ) 
 
 
-//      oTable:Replace("LBC_MTOBAS",oXls:COL_S)
-//      oTable:Replace("LBC_MTOIVA",oXls:COL_T)
-      oTable:Replace("LBC_MTONET",oXls:COL_M)
-      oTable:Replace("LBC_PORIVA",oXls:COL_S) // *100)
+      oTable:Replace("LBC_BASGN",oXls:COL_Q)
+      oTable:Replace("LBC_MTOIVA",oXls:COL_S)
+      oTable:Replace("LBC_MTONET",oXls:COL_O)
+      oTable:Replace("LBC_PORIVA",oXls:COL_R*100)
       oTable:Replace("LBC_CODMOD",oDp:cCtaMod)
       oTable:Replace("LBC_MTOEXE",0)
       oTable:SetDefault()

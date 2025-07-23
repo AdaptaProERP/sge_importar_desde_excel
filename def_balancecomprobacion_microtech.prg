@@ -9,49 +9,46 @@
 #INCLUDE "DPXBASE.CH"
 
 PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
-    LOCAL cFileDbf,cFileXls,cTable,cCodCta,cDescri,nAt,cWhere,nMonto
+    LOCAL cFileDbf,cFileXls,cTable,cCodCta,cDescri,nAt,cWhere,nMonto,cFecha:=""
     LOCAL oTable,oXls,oCta,dHasta,aFechas:={}
-    LOCAL nLinIni,nContar,I,U
+    LOCAL nLinIni,nLinFin,nContar,I,U
     LOCAL cItem,nItem:=0,cNumero:=STRZERO(1,8),cNumEje,nValCam:=1
-
+    LOCAL aMes:={"ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"}
+    LOCAL cMes:="",nMes:=0,cAno:=""
 
     IF Type("oBALINIDIV")="O" .AND. oBALINIDIV:oWnd:hWnd>0
        nValCam:=oBALINIDIV:nValCam
     ENDIF
  
-    DEFAULT cCodigo:="BALANCECOMPROBACION_GALAC"
+    DEFAULT cCodigo:="BALANCECOMPROBACION_MICROTECH"
 
-    oTable:=OpenTable("SELECT IXL_FILE,IXL_TABLA,IXL_LININI FROM DPIMPRXLS WHERE IXL_CODIGO"+GetWhere("=",cCodigo),.T.)
+    oTable  :=OpenTable("SELECT IXL_FILE,IXL_TABLA,IXL_LININI,IXL_LINFIN FROM DPIMPRXLS WHERE IXL_CODIGO"+GetWhere("=",cCodigo),.T.)
     cFileXls:=ALLTRIM(oTable:IXL_FILE  )
     cTable  :=ALLTRIM(oTable:IXL_TABLA )
     nLinIni :=MAX(oTable:IXL_LININI,1)
+    nLinFin :=MAX(oTable:IXL_LINFIN,0)
+
     oTable:End(.T.)
 
     SET DECI TO 2
 
     IF(ValType(oSay)="O",oSay:SetText("Leyendo Archivo"),NIL)
 
-    oXls:=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,1) // nLinIni)
+    oXls   :=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,2-1,4+1,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,.T.)
+    oXls:B4:=UPPER(CTOO(oXls:B4,"C"))
+    cMes   :=LEFT(oXls:B4,3)
+    nMes   :=ASCAN(aMes,cMes)
+    cAno   :=RIGHT(oXls:B4,4)
+    cFecha :="01/"+STRZERO(nMes,2)+"/"+cAno 
+    dHasta :=FCHFINMES(cFecha)
+    // ? oXls:B4,"B4",nMes,cFecha,dHasta
 
-    oXls:Goto(nLinIni-3)
+    oXls:End()
 
-    oXls:Gotop()
-
-    WHILE !oXls:Eof() .AND. oXls:Recno()<6
-
-      // Obtenemos la fecha final del Balance
-      IF " DEL "$oXls:COL_C
-         oXls:COL_C:=ALLTRIM(oXls:COL_C)
-         dHasta:=CTOD(RIGHT(oXls:COL_C,10))
-      ENDIF
-
-      oXls:DbSkip()
-
-    ENDDO
+    oXls:=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,nLinIni,nLinFin) // nLinIni)
 
     // Fecha hasta del Balance, si esta vacio asume la fecha de inicio del ejercicio -1 , final del ejercicio pasado
-    dHasta:=IF(Empty(dHasta),oDp:dFchInicio-1,dHasta)
-
+    dHasta :=IF(Empty(dHasta),oDp:dFchInicio-1,dHasta)
     cNumEje:=EJECUTAR("GETNUMEJE",dHasta)
     nValCam:=EJECUTAR("DPGETVALCAM",oDp:cMonedaExt,dHasta)
 
@@ -98,9 +95,10 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
          LOOP
       ENDIF
 
-      nAt    :=AT("-",cCodCta)
+      nAt    :=AT(" ",cCodCta)
       cDescri:=SUBS(cCodCta,nAt+1,LEN(cCodCta))
-      cCodCta:=LEFT(cCodCta,nAt-1)
+      cCodCta:=ALLTRIM(LEFT(cCodCta,nAt-1))
+
      
       // cCodCta:=STRTRAN(ALLTRIM(oXls:COL_A),"-","")
       cCodCta:=STRTRAN(cCodCta,";","")
@@ -113,23 +111,24 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
          LOOP
       ENDIF
 
-      nMonto:=CTOO(oXls:COL_F,"N")
+      nMonto:=CTOO(oXls:COL_E,"N")
 
-      IF(ValType(oMemo)="O",oMemo:Append("#"+LSTR(oXls:Recno())+"->"+cCodCta+CRLF),NIL)
+      IF(ValType(oMemo)="O",oMemo:Append("#"+LSTR(oXls:Recno())+"->"+cCodCta+" "+cDescri+CRLF),NIL)
 
       cWhere    :="CTA_CODMOD"+GetWhere("=",oDp:cCtaMod)+" AND CTA_CODIGO"+GetWhere("=",cCodCta)
 
       IF !ISSQLFIND("DPCTA",cWhere)
         oCta:AppendBlank()
+        oCta:lAuditar:=.F.
         oCta:Replace("CTA_CODIGO",cCodCta)
         oCta:Replace("CTA_DESCRI",cDescri)
         oCta:Replace("CTA_CODMOD",oDp:cCtaMod)
-        oCta:Replace("CTA_CODMOD",.T.)
+        oCta:Replace("CTA_ACTIVA",.T.)
         oCta:Commit("")
       ENDIF
 
-      IF nMonto<>0
-
+      // solo cuenta de Asientos
+      IF nMonto<>0 .AND. EJECUTAR("ISCTADET",cCodCta,.F.)
          nItem++ 
          cItem:=STRZERO(nItem,4)
          oTable:AppendBlank()

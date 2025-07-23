@@ -17,7 +17,7 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     LOCAL nNumFile:=NIL,dDesde:=CTOD(""),dHasta:=CTOD("")
     LOCAL cNumPar:=STRZERO(1,5),nContar:=0
 
-    DEFAULT cCodigo:="COLEGIO_CAPACHO_NOM"
+    DEFAULT cCodigo:="COLEGIO_CAPACHO_ANT"
 
     oTable  :=OpenTable("SELECT IXL_FILE,IXL_TABLA,IXL_LININI,IXL_MEMO FROM DPIMPRXLS WHERE IXL_CODIGO"+GetWhere("=",cCodigo),.T.)
     cFileXls:=ALLTRIM(oTable:IXL_FILE  )
@@ -48,24 +48,6 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     IF(oImpXls:lBrowse,oXls:Browse(),NIL)
 
     // Busca cuentas según nombre
-    WHILE !oXls:Eof()
-
-      IF Empty(oXls:COL_B) .AND. (!Empty(oXls:COL_F) .OR. !Empty(oXls:COL_G))
-         cCodCta:=SQLGET("DPCTA","CTA_CODIGO","CTA_DESCRI"+GetWhere("=",oXls:COL_C))
-         cCodCta:=STRTRAN(cCodCta,".","")
-
-         IF !Empty(cCodCta)
-            IF(ValType(oMemo )="O",oMemo:Append(ALLTRIM(oXls:COL_C)+" Ubicada Cta="+cCodCta+CRLF),NIL)
-            oXls:Replace("COL_B",cCodCta)
-         ENDIF
-
-      ENDIF
-
-      oXls:DbSkip()
-
-    ENDDO
-
-    ADEPURA(oXls:aData,{|a,n| Empty(a[2]) })
 
     IF(ValType(oMeter)="O",oMeter:SetTotal(oXls:RecCount()),NIL)
 
@@ -99,30 +81,26 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
                         oRef:Set(aRef[n,1],aRef[n,2])})
 
 
-      // NO TIENE CUENTA CONTABLE COMISIONES.xlsx             
-      IF Empty(oXls:COL_C) .AND. !Empty(oXls:COL_B)
-         oXls:COL_C:=oXls:COL_B
-         oXls:COL_B:=SQLGET("DPCTA","CTA_CODIGO","CTA_DESCRI"+GetWhere("=",oXls:COL_C))
-      ENDIF
+     
 
-      cCodCta:=CTOO(oXls:COL_B,"C")
+      cCodCta:=CTOO(oXls:COL_M,"C")
       cCodCta:=STRTRAN(cCodCta,"-","")
       cCodCta:=STRTRAN(cCodCta,";","")
       cCodCta:=STRTRAN(cCodCta,"/","")
       cCodCta:=STRTRAN(cCodCta,".","")
 
-      oXls:COL_A:=CTOO(oXls:COL_A,"C")
+      oXls:COL_B:=CTOO(oXls:COL_B,"C")
 
-      IF LEN(oXls:COL_A)>10
+      IF LEN(oXls:COL_B)>10
          // no es fecha
          oXls:DbSkip()
          LOOP
       ENDIF
 
-      oXls:COL_A:=LEFT(oXls:COL_A,10)
+      oXls:COL_B:=LEFT(oXls:COL_B,10)
 
-      IF !Empty(CTOO(oXls:COL_A,"D"))
-         dFecha:=CTOO(oXls:COL_A,"D")
+      IF !Empty(CTOO(oXls:COL_B,"D"))
+         dFecha:=CTOO(oXls:COL_B,"D")
          dDesde:=IF(Empty(dDesde),dFecha,dDesde)
          dDesde:=MIN(dDesde,dFecha)
          dHasta:=MAX(dHasta,dFecha)
@@ -161,22 +139,12 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
       // cItem:=STRZERO(nItem,4)
       // oXls:COL_E:=ALLTRIM(CTOO(oXls:COL_E,"C")) // REFERENCIA
       oXls:COL_C:=CTOO(oXls:COL_C,"C")
+      oXls:COL_G:=CTOO(oXls:COL_G,"C")
+      oXls:COL_G:=IF(Empty(oXls:COL_G),"","REF#")+oXls:COL_G
 
       IF(ValType(oMemo)="O",oMemo:Append("#"+LSTR(oXls:Recno())+"->"+cCodCta+CRLF),NIL)
 
-      nMonto :=CTOO(oXls:COL_F,"N")-CTOO(oXls:COL_G,"N") 
-
-      // Archivo Préstamos empleados cambia las columnas
-      IF nMonto=0
-         nMonto :=CTOO(oXls:COL_D,"N")-CTOO(oXls:COL_E,"N") 
-      ENDIF
-
-      // Archivo comisiones.xls
-      IF nMonto=0
-         nMonto :=CTOO(oXls:COL_E,"N")-CTOO(oXls:COL_F,"N") 
-      ENDIF
-
-
+      nMonto :=CTOO(oXls:COL_L,"N")
 
       // Si la cuenta no existe la busca por Nombre
       IF !ISSQLFIND("DPCTA","CTA_CODIGO"+GetWhere("=",cCodCta)) .AND. nMonto<>0
@@ -186,10 +154,8 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
 
       IF !ISSQLFIND("DPCTA","CTA_CODIGO"+GetWhere("=",cCodCta)) .AND. nMonto<>0
 
-         EJECUTAR("DPCTACREA",cCodCta,oXls:COL_C)
-
          IF ValType(oMemo)="O"
-           oMemo:Append("Cuenta "+cCodCta+" ha sido creada "+oXls:COL_C+CRLF)
+           oMemo:Append("Cuenta "+cCodCta+" no encontrada "+CRLF)
          ENDIF
 
       ENDIF
@@ -210,9 +176,9 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
          oTable:AppendBlank()
          oTable:Replace("MOC_ITEM"  ,cItem)
          oTable:Replace("MOC_CUENTA",cCodCta)
-         oTable:Replace("MOC_DESCRI",oXls:COL_C)
+         oTable:Replace("MOC_DESCRI",ALLTRIM(oXls:COL_E)+" "+oXls:COL_G)
          oTable:Replace("MOC_CTAMOD",oDp:cCtaMod)
-         oTable:Replace("MOC_DOCUME",""    ) // oXls:COL_B)
+         oTable:Replace("MOC_DOCUME",CTOO(oXls:COL_C,"C")) // oXls:COL_B)
          oTable:Replace("MOC_FECHA" ,dFecha) // oDp:dFchInicio)
          oTable:Replace("MOC_ACTUAL","S")
          oTable:Replace("MOC_ORIGEN","XLS")
@@ -221,7 +187,8 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
          oTable:Replace("MOC_USUARI",oDp:cUsuario)
          oTable:Replace("MOC_MONTO" ,nMonto)
          oTable:Replace("MOC_VALCAM",nValCam)
-//       oTable:Replace("MOC_RIF"   ,oXls:COL_C)
+         oTable:Replace("MOC_TIPO"  ,"ANT"  )
+         oTable:Replace("MOC_RIF"   ,oXls:COL_D)
          oTable:Replace("MOC_CODSUC",oParXls:cCodSuc)
          oTable:Replace("MOC_NUMFIL",nNumFile)
          oTable:Replace("MOC_NUMPAR",cNumPar )
@@ -232,6 +199,42 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
            DPFOCUS(oMemo)
            oMemo:Append("#"+GetNumRel(oXls:Recno(),oXls:RecCount())+" "+DTOC(dFecha)+" "+cCodCta+" "+cItem+" "+LSTR(nMonto)+CRLF)
          ENDIF
+
+         // Contrapartida bancaria
+         cCodCta:=CTOO(oXls:COL_F,"C")
+         cCodCta:=STRTRAN(cCodCta,"-","")
+         cCodCta:=STRTRAN(cCodCta,";","")
+         cCodCta:=STRTRAN(cCodCta,"/","")
+         cCodCta:=STRTRAN(cCodCta,".","")
+
+
+         cItem :=SQLINCREMENTAL("DPASIENTOS","MOC_ITEM",cWhere,NIL,NIL,.T.,4)
+         oTable:AppendBlank()
+         oTable:Replace("MOC_ITEM"  ,cItem)
+         oTable:Replace("MOC_CUENTA",cCodCta)
+         oTable:Replace("MOC_DESCRI",ALLTRIM(oXls:COL_E)+" "+oXls:COL_G)
+         oTable:Replace("MOC_CTAMOD",oDp:cCtaMod)
+         oTable:Replace("MOC_DOCUME",CTOO(oXls:COL_C,"C")) // oXls:COL_B)
+         oTable:Replace("MOC_FECHA" ,dFecha) // oDp:dFchInicio)
+         oTable:Replace("MOC_ACTUAL","S")
+         oTable:Replace("MOC_ORIGEN","XLS")
+         oTable:Replace("MOC_NUMCBT",cNumero)
+         oTable:Replace("MOC_NUMEJE",cNumEje)
+         oTable:Replace("MOC_USUARI",oDp:cUsuario)
+         oTable:Replace("MOC_MONTO" ,nMonto*-1)
+         oTable:Replace("MOC_VALCAM",nValCam)
+         oTable:Replace("MOC_TIPO"  ,"ANT"  )
+         oTable:Replace("MOC_RIF"   ,oXls:COL_D)
+         oTable:Replace("MOC_CODSUC",oParXls:cCodSuc)
+         oTable:Replace("MOC_NUMFIL",nNumFile)
+         oTable:Replace("MOC_NUMPAR",cNumPar )
+         oTable:Replace("MOC_TIPTRA","D"     )
+         oTable:Commit("")
+
+
+
+
+
 
       ENDIF
 
@@ -258,8 +261,11 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
    ENDIF
 
    // EJECUTAR("BRASIENTORESORG","MOC_ORIGEN"+GetWhere("=","XLS"),NIL,oDp:nIndicada,dDesde,dHasta)
+   EJECUTAR("DPCBTEFIX2")
    EJECUTAR("BRRECCBTCON","MOC_ORIGEN"+GetWhere("=","XLS")+" AND MOC_NUMFIL"+GetWhere("=",nNumFile),NIL,oDp:nIndicada,dDesde,dHasta)
 
 
 RETURN .T.
 //
+
+
