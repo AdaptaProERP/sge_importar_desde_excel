@@ -15,6 +15,8 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     LOCAL cItem,nItem:=0,cNumero:=STRZERO(1,8),cNumEje,nValCam:=1
     LOCAL aMes:={"ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"}
     LOCAL cMes:="",nMes:=0,cAno:=""
+    LOCAL aCta:={}
+    LOCAL nNumFile:=NIL,nT1
 
     IF Type("oBALINIDIV")="O" .AND. oBALINIDIV:oWnd:hWnd>0
        nValCam:=oBALINIDIV:nValCam
@@ -28,7 +30,16 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     nLinIni :=MAX(oTable:IXL_LININI,1)
     nLinFin :=MAX(oTable:IXL_LINFIN,0)
 
+    nNumFile:=EJECUTAR("DPFILEEMPGETNUM",cFileXls,cCodigo)
+
     oTable:End(.T.)
+
+    cWhere  :="MOC_NUMFIL"+GetWhere("=",nNumFile)
+    nT1     :=SECONDS()
+
+    IF nNumFile>0
+      SQLDELETE(cTable,cWhere)
+    ENDIF
 
     SET DECI TO 2
 
@@ -50,8 +61,9 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     // Fecha hasta del Balance, si esta vacio asume la fecha de inicio del ejercicio -1 , final del ejercicio pasado
     dHasta :=IF(Empty(dHasta),oDp:dFchInicio-1,dHasta)
     cNumEje:=EJECUTAR("GETNUMEJE",dHasta)
-    nValCam:=EJECUTAR("DPGETVALCAM",oDp:cMonedaExt,dHasta)
 
+//  nValCam:=EJECUTAR("DPGETVALCAM",oDp:cMonedaExt,dHasta)
+/*
     cWhere:="MOC_CODSUC"+GetWhere("=",oDp:cSucursal)+" AND "+;
             "MOC_ORIGEN"+GetWhere("=","BAL"        )+" AND "+;
             "MOC_FECHA" +GetWhere("=",dHasta       )
@@ -59,7 +71,8 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     IF COUNT(cTable,cWhere)>0 .AND. MsgYesNo("Desea Remover todos los Asientos del Balacen Inicial "+DTOC(dHasta))
       SQLDELETE(cTable)
     ENDIF
-
+*/
+/*
     cWhere:="CBT_CODSUC"+GetWhere("=",oDp:cSucursal     )+" AND "+;
             "CBT_ACTUAL"+GetWhere("=","S"               )+" AND "+;
             "CBT_NUMERO"+GetWhere("=",cNumero           )+" AND "+;
@@ -72,6 +85,7 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
        NIL,.T.,cWhere)
 
     ENDIF
+*/
 
     IF(ValType(oMeter)="O",oMeter:SetTotal(oXls:RecCount()),NIL)
 
@@ -172,13 +186,13 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
 
    IF(ValType(oMemo )="O",oMemo:Append("Creando Comprobante Inicial "+CRLF),NIL)
    EJECUTAR("DPCBTEFIX")
-
+/*
    aFechas:=EJECUTAR("GETFCHEJER",dHasta)
    IF !Empty(aFechas)
       EJECUTAR("BRWCOMPROBACION",NIL,aFechas[1],aFechas[2])
    ELSE
       EJECUTAR("BRWCOMPROBACION",NIL,oDp:dFchInicio,oDp:dFchCierre)
    ENDIF
-
+*/
 RETURN .T.
 
