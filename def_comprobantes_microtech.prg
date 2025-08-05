@@ -15,15 +15,15 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     LOCAL cItem,nItem:=0,cNumero:=STRZERO(1,8),cNumEje,nValCam:=1,nNumFile
     LOCAL aMes:={"ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"}
     LOCAL cMes:="",nMes:=0,cAno:=""
-    LOCAL aCta:={},aCbte:={},cCbte,dFecha,nAt,nCantid,nValCam:=1,aAsientos:={}
+    LOCAL aCta:={},aCbte:={},cCbte,dFecha,nAt,nCantid,nValCam:=1,aAsientos:={},aCtas:={}
     LOCAL oDb  :=OpenOdbc(oDp:cDsnData)
-    LOCAL dDesde:=CTOD(""),dHasta:=CTOD(""),nDebe,nHaber,nDec:=2
+    LOCAL dDesde:=CTOD(""),dHasta:=CTOD(""),nDebe,nHaber,nDec:=2,cComent:="",cTipDoc:="",cNumDoc:=""
 
     IF Type("oBALINIDIV")="O" .AND. oBALINIDIV:oWnd:hWnd>0
        nValCam:=oBALINIDIV:nValCam
     ENDIF
  
-    DEFAULT cCodigo:="MAYOR_ANALITICO_MICROTECH"
+    DEFAULT cCodigo:="COMPROBANTES_MICROTECH"
 
     oTable  :=OpenTable("SELECT IXL_FILE,IXL_TABLA,IXL_LININI,IXL_LINFIN FROM DPIMPRXLS WHERE IXL_CODIGO"+GetWhere("=",cCodigo),.T.)
     cFileXls:=ALLTRIM(oTable:IXL_FILE  )
@@ -31,8 +31,21 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     nLinIni :=MAX(oTable:IXL_LININI,1)
     nLinFin :=oTable:IXL_LINFIN
 
-
     oTable:End(.T.)
+
+    IF nLinFin=0
+
+       cDescri:="Introduzca el Número de la Línea Final del Archivo"+CRLF+cFileXls
+
+       IF ValType(oMemo)="O"
+         oMemo:SetText(cDescri+CRLF)
+       ENDIF
+
+       MsgMemo(cDescri)
+
+       RETURN .F.
+
+    ENDIF
 
 //    SET DECI TO 2
 
@@ -54,8 +67,6 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
     ENDIF
 
     // nLinFin:=100
-
-//? nLinFin,"nLinFin"
   
     oXls:=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,nLinIni,nLinFin,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,nDec) // nLinIni)
 
@@ -78,36 +89,31 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
       IF(ValType(oSay  )="O",oSay:SetText("Reg:"+GetNumRel(oXls:Recno(),oXls:RecCount())),NIL)
       IF(ValType(oMeter)="O",oMeter:Set(oXls:Recno()),NIL)
 
-      IF LEFT(oXls:COL_A,6)="Cuenta"
+      IF LEFT(oXls:COL_A,12)="Comprobante:"
 
-        cCodCta:=CTOO(SUBS(oXls:COL_A,8,20),"C")
-        cCodCta:=STRTRAN(cCodCta,";","")
-        cCodCta:=STRTRAN(cCodCta,"/","")
-        cCodCta:=STRTRAN(cCodCta,".","")
-        cCodCta:=ALLTRIM(cCodCta)
-        cDescri:=CTOO(oXls:COL_F,"C")
+         oXls:COL_B:=ALLTRIM(CTOO(oXls:COL_B,"C"))
+         cCbte     :=LEFT(oXls:COL_B,8)
+         nAt       :=AT("Fecha:",oXls:COL_B)
+         dFecha    :=CTOD(SUBS(oXls:COL_B,nAt+7,10))
 
-        cWhere :="CTA_CODMOD"+GetWhere("=",oDp:cCtaMod)+" AND "+;
-                 "CTA_CODIGO"+GetWhere("=",cCodCta    )
+         // Proxima linea es comentario
+         oXls:DbSkip()
+         cComent:=oXls:COL_B:=ALLTRIM(CTOO(oXls:COL_B,"C"))
 
-        IF !ISSQLFIND("DPCTA",cWhere)
-          oCta:AppendBlank()
-          // oCta:lAuditar:=.F.
-          oCta:Replace("CTA_CODIGO",cCodCta)
-          oCta:Replace("CTA_DESCRI",cDescri)
-          oCta:Replace("CTA_CODMOD",oDp:cCtaMod)
-          oCta:Replace("CTA_ACTIVA",.T.)
-          oCta:Commit("")
-        ENDIF
+         IF ValType(oMemo)="O"
+            oMemo:SetText("Cbte "+cCbte+" Fecha "+DTOC(dFecha)+CRLF)
+         ENDIF
 
-      ENDDI
+         LOOP
 
-      cCbte :=ALLTRIM(CTOO(oXls:COL_B,"C"))
+      ENDIF
+
+      // cCbte :=ALLTRIM(CTOO(oXls:COL_B,"C"))
      
-      IF LEN(cCbte)=8 .AND. ISALLDIGIT(cCbte)
+      IF LEN(cCbte)=8 // .AND. ISALLDIGIT(cCbte)
 
-         dFecha :=CTOO(oXls:COL_A,"C")+"/"+SUBS(cCbte,5,2)+"/"+LEFT(cCbte,4)
-         dFecha :=CTOD(dFecha)
+         // dFecha :=CTOO(oXls:COL_A,"C")+"/"+SUBS(cCbte,5,2)+"/"+LEFT(cCbte,4)
+         // dFecha :=CTOD(dFecha)
 
          dDesde :=IF(Empty(dDesde),dFecha,dDesde)
          dHasta :=IF(Empty(dHasta),dFecha,dHasta)
@@ -131,46 +137,95 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
             oCbte:Replace("CBT_NUMEJE",cNumEje)
             oCbte:Replace("CBT_ACTUAL","S")
             oCbte:Replace("CBT_NUMFIL",nNumFile)
+            oCbte:Replace("CBT_COMEN1",cComent)
             oCbte:Commit()
 
         ENDIF
 
-        oXls:COL_F:=CTOO(oXls:COL_F,"C")
-        oXls:COL_G:=ALLTRIM(CTOO(oXls:COL_G,"C"))
-        oXls:COL_H:=ALLTRIM(CTOO(oXls:COL_H,"C"))
+      ENDIF
 
-        oXls:COL_G:=STRTRAN(oXls:COL_G,",",".")
-        oXls:COL_H:=STRTRAN(oXls:COL_H,",",".")
+      oXls:COL_A:=CTOO(oXls:COL_A,"C")
 
-        nDebe  :=VAL(oXls:COL_G)
-        nHaber :=VAL(oXls:COL_H)
+      IF ISALLDIGIT(oXls:COL_A)
 
-        nMonto :=IF(nDebe>0,nDebe,nHaber*-1)
-        cDescri:=CTOO(oXls:COL_F,"C")
+         cCodCta   :=CTOO(oXls:COL_B,"C")
+         cCodCta   :=STRTRAN(cCodCta,";","")
+         cCodCta   :=STRTRAN(cCodCta,"/","")
+         cCodCta   :=STRTRAN(cCodCta,".","")
+         cCodCta   :=ALLTRIM(cCodCta)
 
-        AADD(aAsientos,{cCodCta,nMonto,dFecha,cDescri,cCbte,cNumEje})
+         oXls:COL_C:=CTOO(oXls:COL_C,"C")
+         cDescri   :=CTOO(oXls:COL_F,"C")
+
+         oXls:COL_G:=ALLTRIM(CTOO(oXls:COL_G,"C"))
+         oXls:COL_H:=ALLTRIM(CTOO(oXls:COL_H,"C"))
+
+         oXls:COL_G:=STRTRAN(oXls:COL_G,",",".")
+         oXls:COL_H:=STRTRAN(oXls:COL_H,",",".")
+
+         nDebe     :=VAL(oXls:COL_G)
+         nHaber    :=VAL(oXls:COL_H)
+         nMonto    :=IF(nDebe>0,nDebe,nHaber*-1)
+
+         nAt       :=ASCAN(aCtas,{|a,n| a[1]==cCodCta})
+
+         IF nAt=0
+            AADD(aCtas,{cCodCta,oXls:COL_C})
+         ENDIF
+
+         oXls:COL_D:=ALLTRIM(CTOO(oXls:COL_D,"C")) // tipo
+         oXls:COL_E:=ALLTRIM(CTOO(oXls:COL_E,"C")) // numero
+         oXls:COL_F:=ALLTRIM(CTOO(oXls:COL_F,"C")) // Descripción del Asiento
+
+         AADD(aAsientos,{oXls:COL_A,cCodCta,oXls:COL_F,oXls:COL_D,oXls:COL_E,nMonto,dFecha,cCbte,cNumEje})
 
       ENDIF
-   
+  
       oXls:DbSkip()
 
     ENDDO
 
+    FOR I=1 TO LEN(aCtas)
+
+      cCodCta:=aCtas[I,1]
+      cDescri:=aCtas[I,2]
+
+      cWhere :="CTA_CODMOD"+GetWhere("=",oDp:cCtaMod)+" AND "+;
+               "CTA_CODIGO"+GetWhere("=",cCodCta    )
+
+      IF !ISSQLFIND("DPCTA",cWhere)
+         oCta:AppendBlank()
+         oCta:Replace("CTA_CODIGO",cCodCta)
+         oCta:Replace("CTA_DESCRI",cDescri)
+         oCta:Replace("CTA_CODMOD",oDp:cCtaMod)
+         oCta:Replace("CTA_ACTIVA",.T.)
+         oCta:Commit("")
+      ENDIF
+
+    NEXT I
+
     oCta:End()
     oCbte:End()
+    oXls:End()
+
+// ViewArray(aAsientos)
 
     FOR I=1 TO LEN(aAsientos)
 
-        cCodCta:=aAsientos[I,1]
-        nMonto :=aAsientos[I,2]
-        dFecha :=aAsientos[I,3]
-        cDescri:=aAsientos[I,4]
-        cCbte  :=aAsientos[I,5]
-        cNumEje:=aAsientos[I,6]
+        cItem  :=aAsientos[I,1]
+        cCodCta:=aAsientos[I,2]
+        cDescri:=aAsientos[I,3]
+        cTipDoc:=aAsientos[I,4]
+        cNumDoc:=aAsientos[I,5]
+        nMonto :=aAsientos[I,6]
+        dFecha :=aAsientos[I,7]
+        cCbte  :=aAsientos[I,8]
+        cNumEje:=aAsientos[I,9]
 
-        cItem:="0000" // STRZERO(nItem,4)
         oAsientos:AppendBlank()
-        oAsientos:Replace("MOC_ITEM"  ,cItem)
+        oAsientos:Replace("MOC_ITEM"  ,cItem  )
+        oAsientos:Replace("MOC_TIPO"  ,cTipDoc)
+        oAsientos:Replace("MOC_DOCUME",cNumDoc)
         oAsientos:Replace("MOC_CUENTA",cCodCta)
         oAsientos:Replace("MOC_DESCRI",cDescri)
         oAsientos:Replace("MOC_CTAMOD",oDp:cCtaMod)
@@ -187,17 +242,13 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
         oAsientos:Commit("")
 
     NEXT I
-
-    oXls:End()
     
     oAsientos:End()
- 
-//    EJECUTAR("BRRECCBTCON","MOC_ORIGEN"+GetWhere("=","XLS")+" AND MOC_NUMFIL"+GetWhere("=",nNumFile),NIL,oDp:nIndicada,dDesde,dHasta)
 
-    EJECUTAR("BRWMAYORANALITICO",NIL,dDesde,dHasta)
-//
-// PROCE MAIN(oGenRep,dDesde,dHasta,RGO_C1,RGO_C2,RGO_C3,RGO_C4,RGO_I1,RGO_F1,RGO_I2,RGO_F2,cCodMon,nPeriodo,cWhereAdd)
+    IF !Empty(dDesde)
+     cWhere:="MOC_NUMFIL"+GetWhere("=",nNumFile)
+     EJECUTAR("BRASIENTOSEDIT",cWhere,NIL,oDp:nIndefinida,dDesde,dHasta)
+    ENDIF
 
-
-RETURN NIL
+RETURN .T.
 // EOF

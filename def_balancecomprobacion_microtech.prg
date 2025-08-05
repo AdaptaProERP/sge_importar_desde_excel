@@ -186,6 +186,9 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
 
    IF(ValType(oMemo )="O",oMemo:Append("Creando Comprobante Inicial "+CRLF),NIL)
    EJECUTAR("DPCBTEFIX")
+
+   EJECUTAR("BRWCOMPROBACION",NIL,oDp:dFchInicio,oDp:dFchCierre)
+
 /*
    aFechas:=EJECUTAR("GETFCHEJER",dHasta)
    IF !Empty(aFechas)
@@ -194,5 +197,6 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
       EJECUTAR("BRWCOMPROBACION",NIL,oDp:dFchInicio,oDp:dFchCierre)
    ENDIF
 */
+
 RETURN .T.
 
