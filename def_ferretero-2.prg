@@ -100,7 +100,7 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
 
         IF(ValType(oMemo)="O",oMemo:Append("#"+LSTR(oXls:Recno())+"->"+cCodigo+CRLF),NIL)
 
-        cCodGru   :=EJECUTAR("DPGRU_CREA",NIL,oXls:COL_I,oGrupo) 
+        cCodGru   :=EJECUTAR("DPGRU_CREA",NIL,oXls:COL_J,oGrupo) 
 
         oTable:AppendBlank()
         oTable:SetDefault() // Asigna valores por defecto
@@ -112,7 +112,7 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
         // AEVAL(aRef,{|a,n| oTable:Replace(a[1],a[2])})
         oTable:Replace("INV_CODIGO",cCodigo)
         oTable:Replace("INV_DESCRI",oXls:COL_C)
-        oTable:Replace("INV_CATABC",oXls:COL_A)
+        // oTable:Replace("INV_CATABC",oXls:COL_A)
         oTable:Replace("INV_IVA"   ,"GN")
         oTable:Replace("INV_UTILIZ","V") // Venta
         oTable:Replace("INV_ESTADO","A") // Activo

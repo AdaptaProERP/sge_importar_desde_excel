@@ -125,7 +125,6 @@ PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
         oTable:Replace("INV_COSFOB",nCostoD)
         oTable:Replace("INV_COSMER",nCosto )
         oTable:Replace("INV_GRUPO",cCodGru )
-        oTable:Replace("INV_CODCAR",oDp:cCodCar)
         oTable:Commit()
 
       ELSE
